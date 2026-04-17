@@ -1,136 +1,73 @@
-import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, FlatList, Image } from "react-native";
-import * as ImagePicker from "expo-image-picker";
-import { initializeApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
-import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc } from "firebase/firestore";
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Neighbourhood Market</title>
+  <style>
+    body {
+      font-family: Arial;
+      margin: 0;
+      background: #f5f5f5;
+    }
+    header {
+      background: #111;
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    .container {
+      padding: 20px;
+      max-width: 800px;
+      margin: auto;
+    }
+    .card {
+      background: white;
+      padding: 15px;
+      margin-top: 10px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      padding: 10px;
+      border: none;
+      background: black;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
 
-// 🔥 Replace with your Firebase config
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "...",
-  appId: "..."
-};
+<body>
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+<header>
+  <h1>🏘️ Neighbourhood Market</h1>
+  <p>Buy & Sell within your community</p>
+</header>
 
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+<div class="container">
 
-  const [items, setItems] = useState([]);
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
-  const [image, setImage] = useState(null);
-  const [chat, setChat] = useState({});
+  <div class="card">
+    <h2>📱 Get the App</h2>
+    <p>Use our mobile app to list items, make offers, and chat instantly.</p>
+    <p><b>Run using Expo:</b> npx expo start --tunnel</p>
+  </div>
 
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "items"), (snapshot) => {
-      setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-    return unsub;
-  }, []);
+  <div class="card">
+    <h2>🛍️ Example Listings</h2>
+    <p>Cycle - ₹3000</p>
+    <p>Study Table - ₹1500</p>
+  </div>
 
-  const signUp = async () => {
-    const res = await createUserWithEmailAndPassword(auth, email, password);
-    setUser(res.user);
-  };
+  <div class="card">
+    <h2>💡 How it works</h2>
+    <ul>
+      <li>List items</li>
+      <li>Receive offers</li>
+      <li>Accept and sell</li>
+    </ul>
+  </div>
 
-  const login = async () => {
-    const res = await signInWithEmailAndPassword(auth, email, password);
-    setUser(res.user);
-  };
+</div>
 
-  const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 1,
-    });
-    if (!result.canceled) setImage(result.assets[0].uri);
-  };
-
-  const addItem = async () => {
-    if (!name || !price) return;
-    await addDoc(collection(db, "items"), {
-      name,
-      price,
-      image,
-      user: user.email,
-      offers: [],
-      sold: false
-    });
-    setName(""); setPrice(""); setImage(null);
-  };
-
-  const makeOffer = async (item, offer) => {
-    const ref = doc(db, "items", item.id);
-    await updateDoc(ref, {
-      offers: [...item.offers, { amount: offer, by: user.email }]
-    });
-  };
-
-  const acceptOffer = async (item, offer) => {
-    const ref = doc(db, "items", item.id);
-    await updateDoc(ref, { sold: true, acceptedOffer: offer });
-  };
-
-  if (!user) {
-    return (
-      <View style={{ padding: 20 }}>
-        <Text style={{ fontSize: 24 }}>Login / Signup</Text>
-        <TextInput placeholder="Email" value={email} onChangeText={setEmail} />
-        <TextInput placeholder="Password" value={password} secureTextEntry onChangeText={setPassword} />
-        <TouchableOpacity onPress={signUp}><Text>Sign Up</Text></TouchableOpacity>
-        <TouchableOpacity onPress={login}><Text>Login</Text></TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <View style={{ padding: 20 }}>
-      <Text style={{ fontSize: 24 }}>Neighbourhood Market</Text>
-
-      <TextInput placeholder="Item name" value={name} onChangeText={setName} />
-      <TextInput placeholder="Price" value={price} onChangeText={setPrice} />
-      <TouchableOpacity onPress={pickImage}><Text>Pick Image</Text></TouchableOpacity>
-      {image && <Image source={{ uri: image }} style={{ width: 100, height: 100 }} />}
-      <TouchableOpacity onPress={addItem}><Text>List Item</Text></TouchableOpacity>
-
-      <FlatList
-        data={items}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <View style={{ marginTop: 20 }}>
-            <Text>{item.name} - ₹{item.price}</Text>
-            {item.image && <Image source={{ uri: item.image }} style={{ width: 100, height: 100 }} />}
-            <Text>Seller: {item.user}</Text>
-
-            <TextInput
-              placeholder="Offer"
-              onSubmitEditing={(e) => makeOffer(item, e.nativeEvent.text)}
-            />
-
-            {item.offers.map((o, i) => (
-              <View key={i}>
-                <Text>₹{o.amount} by {o.by}</Text>
-                {item.user === user.email && !item.sold && (
-                  <TouchableOpacity onPress={() => acceptOffer(item, o)}>
-                    <Text>Accept</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))}
-
-            {item.sold && <Text>✅ Sold</Text>}
-          </View>
-        )}
-      />
-    </View>
-  );
-}
+</body>
+</html>
