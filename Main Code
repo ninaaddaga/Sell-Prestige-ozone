@@ -1,0 +1,136 @@
+import { useState, useEffect } from "react";
+import { View, Text, TextInput, TouchableOpacity, FlatList, Image } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { initializeApp } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc } from "firebase/firestore";
+
+// 🔥 Replace with your Firebase config
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "...",
+  appId: "..."
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [items, setItems] = useState([]);
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [image, setImage] = useState(null);
+  const [chat, setChat] = useState({});
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "items"), (snapshot) => {
+      setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return unsub;
+  }, []);
+
+  const signUp = async () => {
+    const res = await createUserWithEmailAndPassword(auth, email, password);
+    setUser(res.user);
+  };
+
+  const login = async () => {
+    const res = await signInWithEmailAndPassword(auth, email, password);
+    setUser(res.user);
+  };
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+    });
+    if (!result.canceled) setImage(result.assets[0].uri);
+  };
+
+  const addItem = async () => {
+    if (!name || !price) return;
+    await addDoc(collection(db, "items"), {
+      name,
+      price,
+      image,
+      user: user.email,
+      offers: [],
+      sold: false
+    });
+    setName(""); setPrice(""); setImage(null);
+  };
+
+  const makeOffer = async (item, offer) => {
+    const ref = doc(db, "items", item.id);
+    await updateDoc(ref, {
+      offers: [...item.offers, { amount: offer, by: user.email }]
+    });
+  };
+
+  const acceptOffer = async (item, offer) => {
+    const ref = doc(db, "items", item.id);
+    await updateDoc(ref, { sold: true, acceptedOffer: offer });
+  };
+
+  if (!user) {
+    return (
+      <View style={{ padding: 20 }}>
+        <Text style={{ fontSize: 24 }}>Login / Signup</Text>
+        <TextInput placeholder="Email" value={email} onChangeText={setEmail} />
+        <TextInput placeholder="Password" value={password} secureTextEntry onChangeText={setPassword} />
+        <TouchableOpacity onPress={signUp}><Text>Sign Up</Text></TouchableOpacity>
+        <TouchableOpacity onPress={login}><Text>Login</Text></TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ padding: 20 }}>
+      <Text style={{ fontSize: 24 }}>Neighbourhood Market</Text>
+
+      <TextInput placeholder="Item name" value={name} onChangeText={setName} />
+      <TextInput placeholder="Price" value={price} onChangeText={setPrice} />
+      <TouchableOpacity onPress={pickImage}><Text>Pick Image</Text></TouchableOpacity>
+      {image && <Image source={{ uri: image }} style={{ width: 100, height: 100 }} />}
+      <TouchableOpacity onPress={addItem}><Text>List Item</Text></TouchableOpacity>
+
+      <FlatList
+        data={items}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <View style={{ marginTop: 20 }}>
+            <Text>{item.name} - ₹{item.price}</Text>
+            {item.image && <Image source={{ uri: item.image }} style={{ width: 100, height: 100 }} />}
+            <Text>Seller: {item.user}</Text>
+
+            <TextInput
+              placeholder="Offer"
+              onSubmitEditing={(e) => makeOffer(item, e.nativeEvent.text)}
+            />
+
+            {item.offers.map((o, i) => (
+              <View key={i}>
+                <Text>₹{o.amount} by {o.by}</Text>
+                {item.user === user.email && !item.sold && (
+                  <TouchableOpacity onPress={() => acceptOffer(item, o)}>
+                    <Text>Accept</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+
+            {item.sold && <Text>✅ Sold</Text>}
+          </View>
+        )}
+      />
+    </View>
+  );
+}
